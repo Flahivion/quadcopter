@@ -1,0 +1,36 @@
+<html>
+	<head>
+		<title>MotionView</title>
+		<script type="text/javascript" language="javascript" src="jquery-1.11.2.min.js"></script>
+		<script type="text/javascript" language="javascript" src="canvasjs.min.js"></script>
+		<script type="text/javascript" language="javascript" src="motionview.js"></script>
+	</head>
+	<body>
+		<div>
+			<input id="txtServer" type="text" value="ws://10.0.0.65:5002" />&nbsp;
+			<button id="btnStart" type="button">Start</button>&nbsp;
+			<button id="btnStop" type="button">Stop</button>
+		</div>
+		<div id="sensorsChart" style="float: left; width: 50%"></div>
+		<div id="orientation" style="float: right; width: 50%"></div>
+		<script type="text/javascript" language="javascript">
+			(function() {
+				var app = null;
+				
+				$("#btnStart").click(function() {
+					if (!app) {
+						app = new MotionView();
+						app.init($("#txtServer").val(), "sensorsChart", "orientation");
+					}
+				});
+				
+				$("#btnStop").click(function() {
+					if (app) {
+						app.destroy();
+						app = null;
+					}
+				});
+			})();
+		</script>
+	</body>
+</html>
