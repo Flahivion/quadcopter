@@ -3,32 +3,42 @@
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
-#include <nanomsg/nn.h>
-#include <nanomsg/pubsub.h>
+#include <signal.h>
+#include <time.h>
 #include "motion.h"
+#include "server.h"
 
-int server_start(const char* url, int* out_socket);
-void server_stop(int socket);
-int server_send(int socket, const char* data, int length);
+#define SEND_BUFFER_LENGTH 1024
+
+void handle_sigint(int signal);
+void process_data(
+	server_context* server,
+	motion_context* motion,
+	float time_total,
+	float time_delta,
+	char* buffer,
+	int length);
+
+static int _force_exit = 0;
 
 int main(int argc, char* argv[])
 {
-	int server_socket;
-	char data[512];
-	char temp[128];
-	int bytes_sent;
-	int bytes_to_send;
-	float accel[3], gyro[3], compass[3];
-	int result;
-	const char* device = "/dev/i2c-1";
-	
-	if (argc != 2)
+	server_context server;
+	char* send_buffer;
+	struct timespec prev_time, cur_time;
+	motion_context motion;
+	float time_total;
+	float time_delta;
+
+	if (argc != 3)
 	{
-		printf("Usage: mpu <server_address>\n");
+		printf("Usage: motioncontrold <i2c_address> <websocket_port>\n");
 		return EXIT_FAILURE;
 	}
 	
-	if (motion_init(device) != 0)
+	signal(SIGINT, handle_sigint);
+	
+	if (motion_init(argv[1], &motion) != 0)
 	{
 		printf("Failed to initialize motion processing unit.\n");
 
@@ -36,79 +46,71 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	if (server_start(argv[1], &server_socket) != 0)
+	if (server_open(atoi(argv[2]), &server) != 0)
 	{
-		printf("Failed to initialize server on address %s\n", argv[1]);
+		printf("Failed to initialize server on port %i\n", atoi(argv[2]));
 		motion_close();
 		return EXIT_FAILURE;
 	}
-	
-	sleep(1);
 
-	while (1)
+	sleep(1);
+	
+	send_buffer = (char*)malloc(SEND_BUFFER_LENGTH);
+	clock_gettime(CLOCK_MONOTONIC, &prev_time);
+	time_total = 0.0f;
+	time_delta = 0.0f;
+
+	while (!_force_exit)
 	{
-		result = motion_sample(accel, gyro, compass);
-		data[0] = '\0';
+		clock_gettime(CLOCK_MONOTONIC, &cur_time);
+		time_delta = (cur_time.tv_sec - prev_time.tv_sec) + ((cur_time.tv_nsec - prev_time.tv_nsec) / 1000000000.0f);
+		time_total += time_delta;
+		prev_time = cur_time;
 		
-		if (result & SAMPLE_ACCEL)
-		{
-			sprintf(temp, "AX:%7.4f,AY:%7.4f,AZ:%7.4f;", accel[0], accel[1], accel[2]);
-			strcat(data, temp);
-		}
-		
-		if (result & SAMPLE_GYRO)
-		{
-			sprintf(temp, "GX:%7.4f,GY:%7.4f,GZ:%7.4f;", gyro[0], gyro[1], gyro[2]);
-			strcat(data, temp);
-		}
-		
-		if (result & SAMPLE_COMPASS)
-		{
-			sprintf(temp, "CX:%7.4f,CY:%7.4f,CZ:%7.4f;", compass[0], compass[1], compass[2]);
-			strcat(data, temp);
-		}
-		
-		printf("Data to send: %s\n", data);
-		bytes_to_send = strlen(data) + 1;
-		bytes_sent = server_send(server_socket, data, bytes_to_send);
-		if (bytes_sent != bytes_to_send)
-		{
-			printf("Failed to send data: %d of %d bytes sent.\n", bytes_sent, bytes_to_send);
-		}
+		process_data(&server, &motion, time_total, time_delta, send_buffer, SEND_BUFFER_LENGTH);
+		server_process(&server);
 	}
 
-	server_stop(server_socket);
+	server_close(&server);
 	motion_close();
+	
+	free(send_buffer);
+	send_buffer = NULL;
 	
 	return EXIT_SUCCESS;
 }
 
-int server_start(const char* url, int* out_socket)
+void handle_sigint(int signal)
 {
-	*out_socket = nn_socket(AF_SP, NN_PUB);
-	if (*out_socket < 0)
-		return 1;
-	
-	if (nn_bind(*out_socket, url) < 0)
-	{
-		nn_shutdown(*out_socket, 0);
-		return 1;
-	}
-	
-	return 0;
+	printf("SIGINT received, exiting...\n");
+	_force_exit = 1;
 }
 
-void server_stop(int socket)
+void process_data(server_context* server, motion_context* motion, float time_total, float time_delta, char* buffer, int length)
 {
-	nn_shutdown(socket, 0);
-}
-
-int server_send(int socket, const char* data, int length)
-{
-	int bytes_sent;
+	char temp[128];
 	
-	bytes_sent = nn_send(socket, data, length, 0);
+	/* Process motion data */
+	motion_process(motion, time_delta);
 	
-	return bytes_sent;
-}
+	/* Construct message with data to send. */
+	buffer[0] = '\0';
+	
+	sprintf(temp, "TS:%7.4f;", time_total);
+	strcat(buffer, temp);
+	
+	sprintf(temp, "AX:%7.4f,AY:%7.4f,AZ:%7.4f;", motion->accelValues[0], motion->accelValues[1], motion->accelValues[2]);
+	strcat(buffer, temp);
 
+	sprintf(temp, "GX:%7.4f,GY:%7.4f,GZ:%7.4f;", motion->gyroValues[0], motion->gyroValues[1], motion->gyroValues[2]);
+	strcat(buffer, temp);
+
+	sprintf(temp, "CX:%7.4f,CY:%7.4f,CZ:%7.4f;", motion->compassValues[0], motion->compassValues[1], motion->compassValues[2]);
+	strcat(buffer, temp);
+	
+	sprintf(temp, "OP:%7.4f,OR:%7.4f,OY:%7.4f;", motion->pitch, motion->roll, motion->yaw);
+	strcat(buffer, temp);
+	
+	/* Send data */
+	server_broadcast(server, buffer, strlen(buffer));
+}

@@ -13,8 +13,23 @@
 #define SAMPLE_GYRO 0x02
 #define SAMPLE_COMPASS 0x04
 
-int motion_init(const char* i2cdevice);
-int motion_calibrate();
+typedef struct
+{
+	float gyroValues[3];
+	float accelValues[3];
+	float compassValues[3];
+	float pitch;
+	float roll;
+	float yaw;
+	
+	float accelOffset[3];
+	float gyroOffset[3];
+} motion_context;
+
+int motion_init(const char* i2cdevice, motion_context* context);
+int motion_process(motion_context* context, float time_delta);
+int motion_calibrate(float* accelOffset, float* gyroOffset);
+
 int motion_sample(float* accel, float* gyro, float* compass);
 int motion_accel_sample(float* accel);
 int motion_gyro_sample(float* gyro);

@@ -1,8 +1,15 @@
 #include "motion.h"
 
-int motion_init(const char* i2cdevice)
+int motion_init(const char* i2cdevice, motion_context* context)
 {
 	struct int_param_s int_param;
+	
+	context->accelValues[0] = context->accelValues[1] = context->accelValues[2] = 0.0f;
+	context->gyroValues[0] = context->gyroValues[1] = context->gyroValues[2] = 0.0f;
+	context->compassValues[0] = context->compassValues[1] = context->compassValues[2] = 0.0f;
+	context->pitch = context->roll = context->yaw = 0.0f;
+	context->accelOffset[0] = context->accelOffset[1] = context->accelOffset[2] = 0.0f;
+	context->gyroOffset[0] = context->gyroOffset[1] = context->gyroOffset[2] = 0.0f;
 	
 	if (i2c_open(i2cdevice) != 0)
 	{
@@ -46,16 +53,41 @@ int motion_init(const char* i2cdevice)
 		return -1;
 	}
 	
-	/*if (motion_calibrate(_accelOffset, _gyroOffset) != 0)
+	if (motion_calibrate(context->accelOffset, context->gyroOffset) != 0)
 	{
-		printf("Failed to calibreate MPU.\n");
+		printf("Failed to calibrate sensors.\n");
 		return -1;
 	}
-	
-	printf("Accelerometer offset: %7.4f %7.4f %7.4f\n", _accelOffset[0], _accelOffset[1], _accelOffset[2]);
-	printf("Gyroscope offset: %7.4f %7.4f %7.4f\n", _gyroOffset[0], _gyroOffset[1], _gyroOffset[2]);*/
-	
+		
 	return 0;
+}
+
+
+int motion_process(motion_context* context, float time_delta)
+{
+	int result;
+	
+	result = motion_sample(context->accelValues, context->gyroValues, context->compassValues);
+	
+	if (result & SAMPLE_ACCEL)
+	{
+		context->accelValues[0] -= context->accelOffset[0];
+		context->accelValues[1] -= context->accelOffset[1];
+		context->accelValues[2] -= context->accelOffset[2];
+	}
+	
+	if (result & SAMPLE_GYRO)
+	{
+		context->gyroValues[0] -= context->gyroOffset[0];
+		context->gyroValues[1] -= context->gyroOffset[1];
+		context->gyroValues[2] -= context->gyroOffset[2];
+	}
+	
+	context->pitch += context->gyroValues[0] * time_delta;
+	context->roll += context->gyroValues[1] * time_delta;
+	context->yaw += context->gyroValues[2] * time_delta;
+	
+	return result;
 }
 
 int motion_calibrate(float* accelOffset, float* gyroOffset)
