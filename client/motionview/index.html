@@ -3,16 +3,22 @@
 		<title>MotionView</title>
 		<script type="text/javascript" language="javascript" src="jquery-1.11.2.min.js"></script>
 		<script type="text/javascript" language="javascript" src="canvasjs.min.js"></script>
+		<script type="text/javascript" language="javascript" src="sylvester.js"></script>
+		<script type="text/javascript" language="javascript" src="glUtils.js"></script>
+		<script type="text/javascript" language="javascript" src="orientationview.js"></script>
 		<script type="text/javascript" language="javascript" src="motionview.js"></script>
 	</head>
 	<body>
 		<div>
-			<input id="txtServer" type="text" value="ws://10.0.0.65:5002" />&nbsp;
+			<input id="txtServer" type="text" value="ws://10.0.0.71:5002" />&nbsp;
 			<button id="btnStart" type="button">Start</button>&nbsp;
 			<button id="btnStop" type="button">Stop</button>
 		</div>
 		<div id="sensorsChart" style="float: left; width: 50%"></div>
-		<div id="orientation" style="float: right; width: 50%"></div>
+		<div id="orientation" style="float: right; width: 50%">
+			<canvas id="orientationCanvas" width="640" height="480">
+			</canvas>
+		</div>
 		<script type="text/javascript" language="javascript">
 			(function() {
 				var app = null;
@@ -20,7 +26,8 @@
 				$("#btnStart").click(function() {
 					if (!app) {
 						app = new MotionView();
-						app.init($("#txtServer").val(), "sensorsChart", "orientation");
+						app.init($("#txtServer").val(), "sensorsChart", "orientationCanvas");
+						window.__app = app;
 					}
 				});
 				
@@ -31,6 +38,27 @@
 					}
 				});
 			})();
+		</script>
+		<script id="shader-fs" type="x-shader/x-fragment">
+			varying lowp vec4 vColor;
+			
+			void main(void) {
+				gl_FragColor = vColor;
+			}
+		</script>
+		<script id="shader-vs" type="x-shader/x-vertex">
+			attribute vec3 aVertexPosition;
+			attribute vec4 aVertexColor;
+			
+			uniform mat4 uMVMatrix;
+			uniform mat4 uPMatrix;
+			
+			varying lowp vec4 vColor;
+			
+			void main(void) {
+				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+				vColor = aVertexColor;
+			}
 		</script>
 	</body>
 </html>

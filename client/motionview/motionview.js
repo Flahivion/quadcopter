@@ -4,7 +4,33 @@ var MotionView = function() {
 };
 
 MotionView.prototype = {
-	init: function(socketUrl, chartElem, orientationElem) {
+	init: function(socketUrl, chartElemId, orientationElemId) {
+		var self = this;
+		
+		self.accelData = { X: [], Y: [], Z: [] };
+		self.gyroData = { X: [], Y: [], Z: [] };
+		self.compassData = { X: [], Y: [], Z: [] };
+		self.curOrientationData = { Pitch: 0, Roll: 0, Yaw: 0 };
+		self.desiredOrientationData = { Pitch: 0, Roll: 0, Yaw: 0 };
+		self.curThrusts = { Rotor1: 1.0, Rotor2: 1.0, Rotor3: 1.0, Rotor4: 1.0 };
+		
+		self.initSocket(socketUrl);
+		self.initChart(chartElemId);
+		self.initOrientation(orientationElemId);
+		
+		self.updateInterval = window.setInterval(function() {
+			self.updateChart();
+			self.updateOrientation();
+		}, 100);
+
+		self.sampleCount = 0;
+		self.sampleReportInterval = null;
+		/*self.sampleReportInterval = window.setInterval(function() {
+			console.log("Samples per second: " + self.sampleCount);
+			self.sampleCount = 0;
+		}, 1000);*/
+	},
+	initSocket: function(socketUrl) {
 		var self = this;
 		
 		self.socket = new WebSocket(socketUrl);
@@ -12,21 +38,11 @@ MotionView.prototype = {
 		self.socket.onclose = function(evt) { self.onSocketClose(evt); };
 		self.socket.onmessage = function(evt) { self.onSocketMessage(evt); };
 		self.socket.onerror = function(evt) { self.onSocketError(evt); };
+	},
+	initChart: function(chartElemId) {
+		var self = this;
 		
-		self.startTime = new Date().getTime();
-		
-		self.gyroData = {
-			X: [],
-			Y: [],
-			Z: []
-		};
-		self.orientationData = {
-			Pitch: 0,
-			Roll: 0,
-			Yaw: 0
-		};
-		
-		self.chart = new CanvasJS.Chart(chartElem, {
+		self.chart = new CanvasJS.Chart(chartElemId, {
 			title: {
 				text: "Sensor data",
 				fontSize: 15
@@ -69,13 +85,12 @@ MotionView.prototype = {
 				}
 			]
 		});
+	},
+	initOrientation: function(orientationElemId) {
+		var self = this;
 		
-		self.orientationElem = document.getElementById(orientationElem);
-		
-		self.updateInterval = window.setInterval(function() {
-			self.updateChart();
-			self.updateOrientation();
-		}, 100);
+		self.orientation = new OrientationView();
+		self.orientation.init(document.getElementById(orientationElemId));
 	},
 	destroy: function() {
 		var self = this;
@@ -88,6 +103,11 @@ MotionView.prototype = {
 		if (self.updateInterval) {
 			window.clearInterval(self.updateInterval);
 			self.updateInterval = null;
+		}
+
+		if (self.sampleReportInterval) {
+			window.clearInterval(self.sampleReportInterval);
+			self.sampleReportInterval = null;
 		}
 	},
 	updateChart: function() {
@@ -118,11 +138,11 @@ MotionView.prototype = {
 	updateOrientation: function() {
 		var self = this;
 		
-		var $elem = $(self.orientationElem);
-		$elem.empty();
-		$("<div></div>").text("Pitch: " + self.orientationData.Pitch).appendTo($elem);
-		$("<div></div>").text("Roll: " + self.orientationData.Roll).appendTo($elem);
-		$("<div></div>").text("Yaw: " + self.orientationData.Yaw).appendTo($elem);
+		self.orientation.render(
+			self.curOrientationData.Pitch, self.curOrientationData.Roll, self.curOrientationData.Yaw,
+			self.desiredOrientationData.Pitch, self.desiredOrientationData.Roll, self.desiredOrientationData.Yaw,
+			[self.curThrusts.Rotor1, self.curThrusts.Rotor2, self.curThrusts.Rotor3, self.curThrusts.Rotor4]
+		);
 	},
 	onSocketOpen: function(evt) {
 	},
@@ -147,10 +167,21 @@ MotionView.prototype = {
 			Y: 0,
 			Z: 0
 		};
-		var orientationValues = {
+		var curOrientationValues = {
 			Pitch: 0,
 			Roll: 0,
 			Yaw: 0
+		};
+		var desiredOrientationValues = {
+			Pitch: 0,
+			Roll: 0,
+			Yaw: 0
+		};
+		var thrustValues = {
+			Rotor1: 0,
+			Rotor2: 0,
+			Rotor3: 0,
+			Rotor4: 0
 		};
 		
 		var sensors = evt.data.split(";");
@@ -193,33 +224,51 @@ MotionView.prototype = {
 						else if (axis == "CZ")
 							compassValues.Z = value;
 						else if (axis == "OP")
-							orientationValues.Pitch = value;
+							curOrientationValues.Pitch = value;
 						else if (axis == "OR")
-							orientationValues.Roll = value;
+							curOrientationValues.Roll = value;
 						else if (axis == "OY")
-							orientationValues.Yaw = value;
+							curOrientationValues.Yaw = value;
+						else if (axis == "DP")
+							desiredOrientationValues.Pitch = value;
+						else if (axis == "DR")
+							desiredOrientationValues.Roll = value;
+						else if (axis == "DY")
+							desiredOrientationValues.Yaw = value;
+						else if (axis == "R1")
+							thrustValues.Rotor1 = value;
+						else if (axis == "R2")
+							thrustValues.Rotor2 = value;
+						else if (axis == "R3")
+							thrustValues.Rotor3 = value;
+						else if (axis == "R4")
+							thrustValues.Rotor4 = value;
 					}
 				}
 			}
 		}
 		
 		if (timestamp) {
-			self.gyroData.X.push({
-				x: timestamp,
-				y: gyroValues.X
-			});
-			self.gyroData.Y.push({
-				x: timestamp,
-				y: gyroValues.Y
-			});
-			self.gyroData.Z.push({
-				x: timestamp,
-				y: gyroValues.Z
-			});
+			self.gyroData.X.push({ x: timestamp, y: gyroValues.X });
+			self.gyroData.Y.push({ x: timestamp, y: gyroValues.Y });
+			self.gyroData.Z.push({ x: timestamp, y: gyroValues.Z });
 			
-			self.orientationData.Pitch = orientationValues.Pitch;
-			self.orientationData.Roll = orientationValues.Roll;
-			self.orientationData.Yaw = orientationValues.Yaw;
+			self.curOrientationData.Pitch = curOrientationValues.Pitch;
+			self.curOrientationData.Roll = curOrientationValues.Roll;
+			self.curOrientationData.Yaw = curOrientationValues.Yaw;
+			
+			self.desiredOrientationData.Pitch = desiredOrientationValues.Pitch;
+			self.desiredOrientationData.Roll = desiredOrientationValues.Roll;
+			self.desiredOrientationData.Yaw = desiredOrientationValues.Yaw;
+			
+			console.log("Cur orientation: Pitch: " + self.curOrientationData.Pitch + ", Roll: " + self.curOrientationData.Roll + ", Yaw: " + self.curOrientationData.Yaw);
+			
+			self.curThrusts.Rotor1 = thrustValues.Rotor1;
+			self.curThrusts.Rotor2 = thrustValues.Rotor2;
+			self.curThrusts.Rotor3 = thrustValues.Rotor3;
+			self.curThrusts.Rotor4 = thrustValues.Rotor4;
+
+			self.sampleCount++;
 		}
 	},
 	onSocketError: function(evt) {
