@@ -66,6 +66,7 @@ int motion_init(const char* i2cdevice, motion_context* context)
 int motion_process(motion_context* context, float time_delta)
 {
 	int result;
+	float gyroX, gyroY, gyroZ;
 	
 	result = motion_sample(context->accelValues, context->gyroValues, context->compassValues);
 	
@@ -82,10 +83,29 @@ int motion_process(motion_context* context, float time_delta)
 		context->gyroValues[1] -= context->gyroOffset[1];
 		context->gyroValues[2] -= context->gyroOffset[2];
 	}
-	
-	context->pitch += context->gyroValues[0] * time_delta;
-	context->roll += context->gyroValues[1] * time_delta;
-	context->yaw += context->gyroValues[2] * time_delta;
+
+	gyroX = context->gyroValues[0];
+	gyroY = context->gyroValues[1];
+	gyroZ = context->gyroValues[2];
+
+	if (gyroX > GYRO_CUTOFF_X_LOW && gyroX < GYRO_CUTOFF_X_HIGH)
+		gyroX = 0.0f;
+
+	if (gyroY > GYRO_CUTOFF_Y_LOW && gyroY < GYRO_CUTOFF_Y_HIGH)
+		gyroY = 0.0f;
+
+	if (gyroZ > GYRO_CUTOFF_Z_LOW && gyroZ < GYRO_CUTOFF_Z_HIGH)
+		gyroZ = 0.0f;
+
+	/* IMU is mounted such that:
+	     - X axis points to the front
+	     - Y axis points to the right
+	     - Z axis points down
+	*/
+
+	context->roll += gyroX * time_delta;
+	context->pitch += gyroY * time_delta;
+	context->yaw += gyroZ * time_delta;
 	
 	return result;
 }
@@ -118,13 +138,13 @@ int motion_calibrate(float* accelOffset, float* gyroOffset)
 		samples++;
 	}
 
-	accelOffset[0] = (accel[0] / (float)samples) / (float)ACCEL_FSR;
-	accelOffset[1] = (accel[1] / (float)samples) / (float)ACCEL_FSR;
-	accelOffset[2] = (accel[2] / (float)samples) / (float)ACCEL_FSR;
+	accelOffset[0] = (accel[0] / (float)samples) / (float)ACCEL_SENSITIVITY;
+	accelOffset[1] = (accel[1] / (float)samples) / (float)ACCEL_SENSITIVITY;
+	accelOffset[2] = (accel[2] / (float)samples) / (float)ACCEL_SENSITIVITY;
 	
-	gyroOffset[0] = (gyro[0] / (float)samples) / (float)GYRO_FSR;
-	gyroOffset[1] = (gyro[1] / (float)samples) / (float)GYRO_FSR;
-	gyroOffset[2] = (gyro[2] / (float)samples) / (float)GYRO_FSR;
+	gyroOffset[0] = (gyro[0] / (float)samples) / (float)GYRO_SENSITIVITY;
+	gyroOffset[1] = (gyro[1] / (float)samples) / (float)GYRO_SENSITIVITY;
+	gyroOffset[2] = (gyro[2] / (float)samples) / (float)GYRO_SENSITIVITY;
 	
 	return 0;
 }
@@ -158,9 +178,9 @@ int motion_accel_sample(float* accel)
 	if (mpu_get_accel_reg(accel_cur, NULL) != 0)
 		return -1;
 	
-	accel[0] = accel_cur[0] / (float)ACCEL_FSR;
-	accel[1] = accel_cur[1] / (float)ACCEL_FSR;
-	accel[2] = accel_cur[2] / (float)ACCEL_FSR;
+	accel[0] = accel_cur[0] / (float)ACCEL_SENSITIVITY;
+	accel[1] = accel_cur[1] / (float)ACCEL_SENSITIVITY;
+	accel[2] = accel_cur[2] / (float)ACCEL_SENSITIVITY;
 	
 	return 0;
 }
@@ -172,9 +192,9 @@ int motion_gyro_sample(float* gyro)
 	if (mpu_get_gyro_reg(gyro_cur, NULL) != 0)
 		return -1;
 	
-	gyro[0] = gyro_cur[0] / (float)GYRO_FSR;
-	gyro[1] = gyro_cur[1] / (float)GYRO_FSR;
-	gyro[2] = gyro_cur[2] / (float)GYRO_FSR;
+	gyro[0] = gyro_cur[0] / (float)GYRO_SENSITIVITY;
+	gyro[1] = gyro_cur[1] / (float)GYRO_SENSITIVITY;
+	gyro[2] = gyro_cur[2] / (float)GYRO_SENSITIVITY;
 	
 	return 0;
 }
@@ -186,9 +206,9 @@ int motion_compass_sample(float* compass)
 	if (mpu_get_compass_reg(compass_cur, NULL) != 0)
 		return -1;
 	
-	compass[0] = compass_cur[0] / (float)COMPASS_FSR;
-	compass[1] = compass_cur[1] / (float)COMPASS_FSR;
-	compass[2] = compass_cur[2] / (float)COMPASS_FSR;
+	compass[0] = compass_cur[0] / (float)COMPASS_SENSITIVITY;
+	compass[1] = compass_cur[1] / (float)COMPASS_SENSITIVITY;
+	compass[2] = compass_cur[2] / (float)COMPASS_SENSITIVITY;
 	
 	return 0;
 }
