@@ -24,11 +24,10 @@ MotionView.prototype = {
 		}, 100);
 
 		self.sampleCount = 0;
-		self.sampleReportInterval = null;
-		/*self.sampleReportInterval = window.setInterval(function() {
+		self.sampleReportInterval = window.setInterval(function() {
 			console.log("Samples per second: " + self.sampleCount);
 			self.sampleCount = 0;
-		}, 1000);*/
+		}, 1000);
 	},
 	initSocket: function(socketUrl) {
 		var self = this;
@@ -261,7 +260,7 @@ MotionView.prototype = {
 			self.desiredOrientationData.Roll = desiredOrientationValues.Roll;
 			self.desiredOrientationData.Yaw = desiredOrientationValues.Yaw;
 			
-			console.log("Cur orientation: Pitch: " + self.curOrientationData.Pitch + ", Roll: " + self.curOrientationData.Roll + ", Yaw: " + self.curOrientationData.Yaw);
+			//console.log("Cur orientation: Pitch: " + self.curOrientationData.Pitch + ", Roll: " + self.curOrientationData.Roll + ", Yaw: " + self.curOrientationData.Yaw);
 			
 			self.curThrusts.Rotor1 = thrustValues.Rotor1;
 			self.curThrusts.Rotor2 = thrustValues.Rotor2;

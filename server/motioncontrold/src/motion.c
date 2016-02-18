@@ -10,6 +10,7 @@ int motion_init(const char* i2cdevice, motion_context* context)
 	context->pitch = context->roll = context->yaw = 0.0f;
 	context->accelOffset[0] = context->accelOffset[1] = context->accelOffset[2] = 0.0f;
 	context->gyroOffset[0] = context->gyroOffset[1] = context->gyroOffset[2] = 0.0f;
+
 	
 	if (i2c_open(i2cdevice) != 0)
 	{

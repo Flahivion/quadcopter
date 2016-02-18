@@ -1,10 +1,10 @@
 CC=gcc
 CFLAGS=-c -Wall -O1 -DMPU9250 -DEMPL_TARGET_PI -I../lib
-LFLAGS=-lssl -lz -lcrypto -lrt
+LFLAGS=-lssl -lz -lcrypto -lrt -lm
 
 all: motioncontrold
 
-motioncontrold: bin/pi.o bin/inv_mpu.o bin/inv_mpu_dmp.o bin/motion.o bin/server.o bin/main.o ../lib/libwebsockets.a
+motioncontrold: bin/pi.o bin/inv_mpu.o bin/inv_mpu_dmp.o bin/serial.o bin/motion.o bin/server.o bin/main.o ../lib/libwebsockets.a
 	$(CC) $(LFLAGS) $^ -o bin/$@
 
 bin/main.o: main.c
@@ -23,6 +23,9 @@ bin/inv_mpu_dmp.o: driver/eMPL/inv_mpu_dmp_motion_driver.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 bin/pi.o: driver/eMPL/pi.c
+	$(CC) $(CFLAGS) $^ -o $@
+
+bin/serial.o: serial.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 .PHONY: clean

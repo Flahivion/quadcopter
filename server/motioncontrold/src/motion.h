@@ -4,7 +4,7 @@
 #include "driver/eMPL/inv_mpu.h"
 #include "driver/eMPL/pi.h"
 
-#define NUM_CALIBRATE_SAMPLES 200
+#define NUM_CALIBRATE_SAMPLES 1000
 #define GYRO_FSR 250 // 250dps
 #define ACCEL_FSR 2 // 2G
 #define COMPASS_FSR 4915 // 4915?'s
@@ -13,14 +13,14 @@
 #define GYRO_SENSITIVITY (32768.0f / GYRO_FSR)
 #define COMPASS_SENSITIVITY (COMPASS_FSR) // TODO
 
-#define GYRO_CUTOFF_X_HIGH 0.1f
-#define GYRO_CUTOFF_X_LOW -0.1f
+#define GYRO_CUTOFF_X_HIGH 0.0f
+#define GYRO_CUTOFF_X_LOW -0.0f
 
-#define GYRO_CUTOFF_Y_HIGH 0.1f
-#define GYRO_CUTOFF_Y_LOW -0.1f
+#define GYRO_CUTOFF_Y_HIGH 0.0f
+#define GYRO_CUTOFF_Y_LOW -0.0f
 
-#define GYRO_CUTOFF_Z_HIGH 0.06f
-#define GYRO_CUTOFF_Z_LOW -0.06f
+#define GYRO_CUTOFF_Z_HIGH 0.0f
+#define GYRO_CUTOFF_Z_LOW -0.0f
 
 #define SAMPLE_ACCEL 0x01
 #define SAMPLE_GYRO 0x02
